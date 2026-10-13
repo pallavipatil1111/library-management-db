@@ -1,0 +1,41 @@
+name: Database CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DB_ENGINE: mysql
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run the 15 database tests
+        run: python tests/run_tests.py
+
+      - name: Build the full database with history
+        run: ./scripts/build.sh
+
+      - name: Run the reports
+        run: |
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          MYSQL_PWD=root mysql -h 127.0.0.1 -u root --table < sql/06_reports.sql | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
